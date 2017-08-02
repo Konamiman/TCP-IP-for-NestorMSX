@@ -28,6 +28,7 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
         private readonly IExternallyControlledSlotsSystem slots;
         private readonly NetworkInterface networkInterface;
         private readonly UnicastIPAddressInformation ipInfo;
+        private readonly bool dnsServersAvailable;
 
         public static TcpipUnapiPlugin GetInstance(PluginContext context, IDictionary<string, object> pluginConfig)
         {
@@ -76,7 +77,9 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                     "No IPv4 network interfaces available" :
                     $"There is no network interface with the IP address {ipAddress}");
             }
-    
+
+            dnsServersAvailable = networkInterface.GetIPProperties().DnsAddresses.Any();
+
             InitRoutinesArray();
         }
 
@@ -137,7 +140,7 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
         private void HandleEntryPointCall()
         {
             var functionNumber = cpu.Registers.A;
-            if (functionNumber < Routines.Length)
+            if (functionNumber < Routines.Length && Routines[functionNumber] != null)
                 cpu.Registers.A = Routines[functionNumber]();
             else
                 cpu.Registers.A = ERR_NOT_IMP;
@@ -153,13 +156,22 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                 UNAPI_GET_INFO,
                 TCPIP_GET_CAPAB,
                 TCPIP_GET_IPINFO,
-                TCPIP_NET_STATE
+                TCPIP_NET_STATE,
+                null, //TCPIP_SEND_ECHO
+                null, //TCPIP_RCV_ECHO
+                TCPIP_DNS_Q,
+                TCPIP_DNS_S
             };
         }
 
         private const int ERR_OK = 0;
         private const int ERR_NOT_IMP = 1;
+        private const int ERR_NO_NETWORK = 2;
         private const int ERR_INV_PAR = 4;
+        private const int ERR_QUERY_EXISTS = 5;
+        private const int ERR_INV_IP = 6;
+        private const int ERR_NO_DNS = 7;
+        private const int ERR_DNS = 8;
 
         private byte UNAPI_GET_INFO()
         {
@@ -177,7 +189,7 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                     cpu.Registers.HL =
                         0 << 0 | // 0: Send ICMP echo messages(PINGs) and retrieve the answers
                         0 << 1 | // 1: Resolve host names by querying a local hosts file or database
-                        0 << 2 | // 2: Resolve host names by querying a DNS server
+                        1 << 2 | // 2: Resolve host names by querying a DNS server
                         0 << 3 | // 3: Open TCP connections in active mode
                         0 << 4 | // 4: Open TCP connections in passive mode, with specified remote socket
                         0 << 5 | // 5: Open TCP connections in passive mode, with unsepecified remote socket
@@ -288,6 +300,154 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                     break;
             }
 
+            return ERR_OK;
+        }
+
+        private bool NoNetworkAvailable()
+        {
+            return !(networkInterface.OperationalStatus == OperationalStatus.Up || networkInterface.OperationalStatus == OperationalStatus.Unknown);
+        }
+
+        private bool dnsQueryInProgress = false;
+        private byte[] lastIpResolved = null;
+        private bool lastIpResolvedWasDirectIp = false;
+        private byte? lastDnsError = null;
+        private byte TCPIP_DNS_Q()
+        {
+            var flags = cpu.Registers.B;
+            if (flags.GetBit(2) == 1 && dnsQueryInProgress)
+            {
+                return ERR_QUERY_EXISTS;
+            }
+            if (flags.GetBit(0) == 1)
+            {
+                dnsQueryInProgress = false;
+                lastDnsError = 0;
+                return ERR_OK;
+            }
+
+            if (NoNetworkAvailable())
+                return ERR_NO_NETWORK;
+
+            if (!dnsServersAvailable)
+                return ERR_NO_DNS;
+
+            var namePointer = cpu.Registers.HL;
+            var nameBytes = new List<byte>();
+            while(slots[namePointer] != 0)
+                nameBytes.Add(slots[namePointer++]);
+            var name = Encoding.ASCII.GetString(nameBytes.ToArray());
+
+            var wasIp = IPAddress.TryParse(name, out IPAddress parsedIp)
+                && IsIPv4(parsedIp);
+            if (wasIp)
+            {
+                lastIpResolved = parsedIp.GetAddressBytes();
+                lastIpResolvedWasDirectIp = true;
+                cpu.Registers.B = 1;
+                cpu.Registers.L = lastIpResolved[0];
+                cpu.Registers.H = lastIpResolved[1];
+                cpu.Registers.E = lastIpResolved[2];
+                cpu.Registers.D = lastIpResolved[3];
+            }
+
+            if (flags.GetBit(1) == 1)
+            {
+                return ERR_INV_IP;
+            }
+
+            dnsQueryInProgress = true;
+            Dns.BeginGetHostAddresses(name,
+                ar =>
+                {
+                    dnsQueryInProgress = false;
+                    IPAddress[] addresses;
+                    try
+                    {
+                        addresses = Dns.EndGetHostAddresses(ar);
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ex is SocketException sockEx)
+                            lastDnsError = UnapiDnsErrorFromSocketError(sockEx.SocketErrorCode);
+                        else
+                            lastDnsError = 0;
+
+                        return;
+                    }
+                    var address = addresses.FirstOrDefault(IsIPv4);
+                    lastIpResolved = address?.GetAddressBytes();
+                    lastIpResolvedWasDirectIp = false;
+                    lastDnsError = null;
+                }
+                ,null);
+
+            cpu.Registers.B = 0;
+            return ERR_OK;
+        }
+
+        private static byte UnapiDnsErrorFromSocketError(SocketError socketError)
+        {
+            switch (socketError)
+            {
+                case SocketError.ConnectionAborted:
+                case SocketError.HostDown:
+                    return 2;
+
+                case SocketError.HostNotFound:
+                case SocketError.NoData:
+                    return 3;
+
+                case SocketError.NetworkDown:
+                    return 19;
+
+                case SocketError.ConnectionRefused:
+                case SocketError.ConnectionReset:
+                    return 5;
+
+                case SocketError.TimedOut:
+                    return 17;
+
+                default:
+                    return 0;
+            }
+        }
+
+        private byte TCPIP_DNS_S()
+        {
+            if (dnsQueryInProgress)
+            {
+                cpu.Registers.B = 1;
+                cpu.Registers.C = 0;
+                return ERR_OK;
+            }
+
+            var clearResults = cpu.Registers.B.GetBit(0) == 1;
+
+            if (lastDnsError != null)
+            {
+                cpu.Registers.B = lastDnsError.Value;
+                if (clearResults)
+                    lastDnsError = null;
+                return ERR_DNS;
+            }
+
+            if (lastIpResolved != null)
+            {
+                cpu.Registers.B = 2;
+                cpu.Registers.C = lastIpResolvedWasDirectIp ? (byte)1 :(byte)0;
+
+                cpu.Registers.L = lastIpResolved[0];
+                cpu.Registers.H = lastIpResolved[1];
+                cpu.Registers.E = lastIpResolved[2];
+                cpu.Registers.D = lastIpResolved[3];
+
+                if (clearResults)
+                    lastIpResolved = null;
+                return ERR_OK;
+            }
+
+            cpu.Registers.B = 0;
             return ERR_OK;
         }
     }
