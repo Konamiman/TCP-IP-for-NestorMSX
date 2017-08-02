@@ -152,7 +152,8 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
             {
                 UNAPI_GET_INFO,
                 TCPIP_GET_CAPAB,
-                TCPIP_GET_IPINFO
+                TCPIP_GET_IPINFO,
+                TCPIP_NET_STATE
             };
         }
 
@@ -269,6 +270,24 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
             cpu.Registers.H = ipBytes[1];
             cpu.Registers.E = ipBytes[2];
             cpu.Registers.D = ipBytes[3];
+            return ERR_OK;
+        }
+
+        private byte TCPIP_NET_STATE()
+        {
+            switch (networkInterface.OperationalStatus)
+            {
+                case OperationalStatus.Up:
+                    cpu.Registers.B = 2;
+                    break;
+                case OperationalStatus.Unknown:
+                    cpu.Registers.B = 255;
+                    break;
+                default:
+                    cpu.Registers.B = 0;
+                    break;
+            }
+
             return ERR_OK;
         }
     }

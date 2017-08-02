@@ -5,7 +5,7 @@
 
 This plugin provides Internet connectivity to [NestorMSX](http://github.com/konamiman/NestorMSX) by implementing the [TCP/IP UNAPI specification](http://www.konamiman.com/msx/msx-e.html#unapi).
 
-For now it does nothing, though: only the UNAPI_GET_INFO, TCPIP_GET_CAPAB and TCPIP_GET_IPINFO routines are implemented, so the implementation will be detected by the `apilist.com` tool and you can use the `tcpip.com` tool with the `f` and `s` parameters, but that's it.
+For now it does nothing, though: only the UNAPI_GET_INFO, TCPIP_GET_CAPAB, TCPIP_GET_IPINFO and TCPIP_NET_STATE routines are implemented, so the implementation will be detected by the `apilist.com` tool and you can use the `tcpip.com` tool with the `f` and `s` parameters, but that's it.
 
 
 ## How to use ##
