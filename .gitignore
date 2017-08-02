@@ -8,6 +8,7 @@ Z80dotNet.v12.suo
 *.sln.docstates
 *.cache
 slnx.sqlite
+.vs/
 
 ## Build results
 

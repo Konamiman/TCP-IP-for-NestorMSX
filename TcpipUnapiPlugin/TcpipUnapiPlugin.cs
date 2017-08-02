@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Text;
 using Konamiman.NestorMSX.Hardware;
 using Konamiman.NestorMSX.Memories;
@@ -22,7 +25,9 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
 
         private readonly SlotNumber slotNumber;
         private readonly IZ80Processor cpu;
-        private IExternallyControlledSlotsSystem slots;
+        private readonly IExternallyControlledSlotsSystem slots;
+        private readonly NetworkInterface networkInterface;
+        private readonly UnicastIPAddressInformation ipInfo;
 
         public static TcpipUnapiPlugin GetInstance(PluginContext context, IDictionary<string, object> pluginConfig)
         {
@@ -38,6 +43,40 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
             cpu = context.Cpu;
             slots = context.SlotsSystem;
             cpu.BeforeInstructionFetch += Cpu_BeforeInstructionFetch;
+
+            bool hasIp(NetworkInterface iface, string ip)
+            {
+                return iface.GetIPProperties().UnicastAddresses.Any(a => a.Address.ToString() == ip);
+            }
+
+            bool hasIpv4Address(NetworkInterface iface)
+            {
+                return iface.GetIPProperties().UnicastAddresses.Any(a => IsIPv4(a.Address));
+            }
+
+            var ipAddress = pluginConfig.GetValueOrDefault("ipAddress", "");
+            var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(i => i.Supports(NetworkInterfaceComponent.IPv4));
+            if (ipAddress == "")
+            {
+                networkInterface = 
+                    networkInterfaces.FirstOrDefault(i => hasIpv4Address(i) && i.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                    ?? networkInterfaces.FirstOrDefault(i => hasIpv4Address(i));
+                ipInfo = networkInterface?.GetIPProperties().UnicastAddresses.First(a => IsIPv4(a.Address));
+            }
+            else
+            {
+                networkInterface = networkInterfaces.FirstOrDefault(i => hasIp(i, ipAddress));
+                ipInfo = networkInterface?.GetIPProperties().UnicastAddresses.First(a => a.Address.ToString() == ipAddress);
+            }
+
+            if (networkInterface == null)
+            {
+                throw new Exception(ipAddress == "" ?
+                    "No IPv4 network interfaces available" :
+                    $"There is no network interface with the IP address {ipAddress}");
+            }
+    
             InitRoutinesArray();
         }
 
@@ -112,7 +151,8 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
             Routines = new Func<byte>[]
             {
                 UNAPI_GET_INFO,
-                TCPIP_GET_CAPAB
+                TCPIP_GET_CAPAB,
+                TCPIP_GET_IPINFO
             };
         }
 
@@ -163,8 +203,15 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                         0 << 8 // 8: User timeout suggested when opening a TCP connection is actually applied
                         ;
 
-                    cpu.Registers.B = 0; //Link type = Unknown
-
+                    if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Slip)
+                        cpu.Registers.B = 1;
+                    else if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Ppp)
+                        cpu.Registers.B = 2;
+                    else if (networkInterface.NetworkInterfaceType.ToString().Contains("Ethernet"))
+                        cpu.Registers.B = 3;
+                    else
+                        cpu.Registers.B = 0;
+                    
                     break;
 
                 case 2:
@@ -174,12 +221,55 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                     break;
 
                 case 3:
-                    cpu.Registers.HL = 576;
-                    cpu.Registers.DE = 576;
+                    var mtu = (short)Math.Min(32767, networkInterface.GetIPProperties().GetIPv4Properties().Mtu);
+                    cpu.Registers.HL = mtu;
+                    cpu.Registers.DE = mtu;
                     break;
             }
 
             return ERR_INV_PAR;
+        }
+
+        private bool IsIPv4(IPAddress ipAddress) =>
+            ipAddress.AddressFamily == AddressFamily.InterNetwork;
+
+        private byte TCPIP_GET_IPINFO()
+        {
+            IPAddress getDnsAddress(int index)
+            {
+                var addresses = networkInterface.GetIPProperties().DnsAddresses;
+                return addresses.Count >= index ? null : addresses[index];
+            }
+
+            IPAddress ip = null;
+            switch (cpu.Registers.B)
+            {
+                case 1:
+                    ip = ipInfo.Address;
+                    break;
+                case 3:
+                    ip = ipInfo.IPv4Mask;
+                    break;
+                case 4:
+                    ip = networkInterface.GetIPProperties().GatewayAddresses.FirstOrDefault(a => IsIPv4(a.Address))?.Address;
+                    break;
+                case 5:
+                    ip = getDnsAddress(0);
+                    break;
+                case 6:
+                    ip = getDnsAddress(1);
+                    break;
+            }
+
+            if (ip == null)
+                return ERR_INV_PAR;
+
+            var ipBytes = ip.GetAddressBytes();
+            cpu.Registers.L = ipBytes[0];
+            cpu.Registers.H = ipBytes[1];
+            cpu.Registers.E = ipBytes[2];
+            cpu.Registers.D = ipBytes[3];
+            return ERR_OK;
         }
     }
 }
