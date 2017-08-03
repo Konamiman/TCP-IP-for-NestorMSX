@@ -46,8 +46,17 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Dns.cs">
+      <DependentUpon>TcpipUnapiPlugin.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Information.cs">
+      <DependentUpon>TcpipUnapiPlugin.cs</DependentUpon>
+    </Compile>
     <Compile Include="TcpipUnapiPlugin.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Udp.cs">
+      <DependentUpon>TcpipUnapiPlugin.cs</DependentUpon>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
