@@ -51,6 +51,8 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                 cpu.Registers.H = lastIpResolved[1];
                 cpu.Registers.E = lastIpResolved[2];
                 cpu.Registers.D = lastIpResolved[3];
+
+                return ERR_OK;
             }
 
             if (flags.GetBit(1) == 1)

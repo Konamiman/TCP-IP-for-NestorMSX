@@ -21,6 +21,7 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
         private const int ARG = 0xF847;
         private const string SpecIdentifier = "TCP/IP";
         private const int MaxUdpConnections = 4;
+        private const int MaxTcpConnections = 4;
 
         private static TcpipUnapiPlugin Instance;
 
@@ -175,7 +176,14 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                 TCPIP_UDP_CLOSE,
                 TCPIP_UDP_STATE,
                 TCPIP_UDP_SEND,
-                TCPIP_UDP_RCV
+                TCPIP_UDP_RCV,
+                TCPIP_TCP_OPEN,
+                TCPIP_TCP_CLOSE,
+                TCPIP_TCP_ABORT,
+                TCPIP_TCP_STATE,
+                TCPIP_TCP_SEND,
+                TCPIP_TCP_RCV,
+                TCPIP_TCP_FLUSH
             };
         }
 
@@ -191,6 +199,7 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
         private const int ERR_NO_FREE_CONN = 9;
         private const int ERR_CONN_EXISTS = 10;
         private const int ERR_NO_CONN = 11;
+        private const int ERR_CONN_STATE = 12;
         private const int ERR_LARGE_DGRAM = 14;
 
         private bool IsIPv4(IPAddress ipAddress) =>

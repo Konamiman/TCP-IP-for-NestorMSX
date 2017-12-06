@@ -24,13 +24,13 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                         0 << 0 | // 0: Send ICMP echo messages(PINGs) and retrieve the answers
                         0 << 1 | // 1: Resolve host names by querying a local hosts file or database
                         1 << 2 | // 2: Resolve host names by querying a DNS server
-                        0 << 3 | // 3: Open TCP connections in active mode
+                        1 << 3 | // 3: Open TCP connections in active mode
                         0 << 4 | // 4: Open TCP connections in passive mode, with specified remote socket
-                        0 << 5 | // 5: Open TCP connections in passive mode, with unsepecified remote socket
+                        1 << 5 | // 5: Open TCP connections in passive mode, with unsepecified remote socket
                         0 << 6 | // 6: Send and receive TCP urgent data
-                        0 << 7 | // 7: Explicitly set the PUSH bit when sending TCP data
+                        1 << 7 | // 7: Explicitly set the PUSH bit when sending TCP data
                         0 << 8 | // 8: Send data to a TCP connection before the ESTABLISHED state is reached
-                        0 << 9 | // 9: Flush the output buffer of a TCP connection
+                        1 << 9 | // 9: Flush the output buffer of a TCP connection
                         1 << 10 | // 10: Open UDP connections
                         0 << 11 | // 11: Open raw IP connections
                         0 << 12 | // 12: Explicitly set the TTL and TOS for outgoing datagrams
@@ -62,9 +62,9 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                     break;
 
                 case 2:
-                    cpu.Registers.B = 0;
+                    cpu.Registers.B = MaxTcpConnections;
                     cpu.Registers.C = MaxUdpConnections;
-                    cpu.Registers.D = 0;
+                    cpu.Registers.D = (byte)tcpConnections.Count(c => c == null);
                     cpu.Registers.E = (byte)udpConnections.Count(c => c == null);
                     cpu.Registers.HL = 0;
                     break;
