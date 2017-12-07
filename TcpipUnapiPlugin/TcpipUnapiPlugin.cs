@@ -145,12 +145,6 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
         {
             var functionNumber = cpu.Registers.A;
 
-            if (functionNumber == 29)
-            {
-                cpu.Registers.IFF1 = 1;
-                cpu.Registers.IFF1 = 2;
-            }
-
             if (functionNumber < Routines.Length && Routines[functionNumber] != null)
                 cpu.Registers.A = Routines[functionNumber]();
             else
@@ -183,7 +177,17 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                 TCPIP_TCP_STATE,
                 TCPIP_TCP_SEND,
                 TCPIP_TCP_RCV,
-                TCPIP_TCP_FLUSH
+                TCPIP_TCP_FLUSH,
+                null, //TCPIP_RAW_OPEN
+                null, //TCPIP_RAW_CLOSE
+                null, //TCPIP_RAW_STATE
+                null, //TCPIP_RAW_SEND
+                null, //TCPIP_RAW_RCV
+                TCPIP_CONFIG_AUTOIP,
+                TCPIP_CONFIG_IP,
+                TCPIP_CONFIG_TTL,
+                TCPIP_CONFIG_PING,
+                TCPIP_WAIT
             };
         }
 

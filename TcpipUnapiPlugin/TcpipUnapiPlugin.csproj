@@ -51,6 +51,9 @@
     <Compile Include="Information.cs">
       <DependentUpon>TcpipUnapiPlugin.cs</DependentUpon>
     </Compile>
+    <Compile Include="Misc.cs">
+      <DependentUpon>TcpipUnapiPlugin.cs</DependentUpon>
+    </Compile>
     <Compile Include="Tcp.cs">
       <DependentUpon>TcpipUnapiPlugin.cs</DependentUpon>
     </Compile>
