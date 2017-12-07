@@ -6,6 +6,11 @@ using System.Net.Sockets;
 
 namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
 {
+    /// <summary>
+    /// Encapsulates .NET TCP connections behind a simplified interface.
+    /// This class doesn't know anything about UNAPI (except for the IsTransient property, 
+    /// which the class itself doesn't use).
+    /// </summary>
     public class TcpConnection
     {
         private TcpClient tcpClient;
@@ -233,5 +238,16 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
         public IPEndPoint RemoteEndpoint { get; private set; }
 
         public bool IsTransient { get; set; }
+
+        public static bool LocalPortIsInUse(int port)
+        {
+            var ipProperties = IPGlobalProperties.GetIPGlobalProperties();
+            var activeConnections = ipProperties.GetActiveTcpConnections();
+            var activeListeners = ipProperties.GetActiveTcpListeners();
+
+            return
+                activeConnections.Any(c => c.LocalEndPoint.Port == port) ||
+                activeListeners.Any(l => l.Port == port);
+        }
     }
 }

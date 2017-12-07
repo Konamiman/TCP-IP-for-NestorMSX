@@ -35,7 +35,20 @@ namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
                     { slots[paramsAddress], slots[paramsAddress + 1], slots[paramsAddress + 2], slots[paramsAddress + 3] };
             var remotePort = NumberUtils.CreateUshort(slots[paramsAddress + 4], slots[paramsAddress + 5]);
             var localPort = NumberUtils.CreateUshort(slots[paramsAddress + 6], slots[paramsAddress + 7]);
-            if (localPort == 0xFFFF) localPort = (ushort) new Random().Next(16384, 32767);
+
+            if (localPort == 0xFFFF)
+            {
+                do
+                {
+                    localPort = (ushort)new Random().Next(16384, 32767);
+                }
+                while (TcpConnection.LocalPortIsInUse(localPort));
+            }
+            else if( TcpConnection.LocalPortIsInUse(localPort))
+            {
+                return ERR_CONN_EXISTS;
+            }
+
             var flags = slots[paramsAddress + 10];
             var isPassive = flags.GetBit(0) == 1;
             var isResident = flags.GetBit(1) == 1;
