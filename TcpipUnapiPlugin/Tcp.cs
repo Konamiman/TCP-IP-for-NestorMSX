@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Net;
 using System.Net.NetworkInformation;
-using System.Net.Sockets;
 using Konamiman.Z80dotNet;
 
 namespace Konamiman.NestorMSX.Plugins.TcpipUnapi
