@@ -31,7 +31,7 @@ The underlying host OS networking API (in particular, the classes from .NET's `S
 ```
     "<slot number>": {
       "type": "TCP/IP UNAPI",
-      "ipAddress: "192.168.0.1"
+      "ipAddress": "192.168.0.1"
     }
 ```
 
